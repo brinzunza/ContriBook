@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { teamApi, contributionApi, reputationApi, verificationApi } from '../lib/api';
-import { Users, FileText, Award, Plus, Check, Flag } from 'lucide-react';
+import { Users, FileText, Award, Plus, Check, Flag, Copy } from 'lucide-react';
 import type { Contribution } from '../types';
 
 export function TeamDetail() {
   const { teamId } = useParams<{ teamId: string }>();
   const [showSubmitForm, setShowSubmitForm] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   const { data: team } = useQuery({
     queryKey: ['team', teamId],
@@ -42,23 +43,62 @@ export function TeamDetail() {
     }
   };
 
+  const copyInviteCode = () => {
+    if (team?.invite_code) {
+      navigator.clipboard.writeText(team.invite_code);
+      setCopiedInvite(true);
+      setTimeout(() => setCopiedInvite(false), 2000);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{team?.name}</h1>
-          {team?.description && (
-            <p className="text-gray-600 mt-2">{team.description}</p>
-          )}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-gray-900">{team?.name}</h1>
+            {team?.description && (
+              <p className="text-gray-600 mt-2">{team.description}</p>
+            )}
+            <div className="mt-4 flex items-center space-x-4">
+              <div className="flex items-center">
+                <Users className="h-4 w-4 text-gray-500 mr-2" />
+                <span className="text-sm text-gray-700">{team?.member_count} members</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-700">Invite Code:</span>
+                <code className="text-sm bg-gray-100 px-3 py-1 rounded text-gray-900 font-mono">
+                  {team?.invite_code}
+                </code>
+                <button
+                  onClick={copyInviteCode}
+                  className="px-3 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 flex items-center"
+                  title="Copy invite code"
+                >
+                  {copiedInvite ? (
+                    <>
+                      <Check className="h-3 w-3 mr-1" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+          <Link
+            to={`/teams/${teamId}/submit`}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Submit Contribution
+          </Link>
         </div>
-        <Link
-          to={`/teams/${teamId}/submit`}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Submit Contribution
-        </Link>
       </div>
 
       {/* Tabs */}

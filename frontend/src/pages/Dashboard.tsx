@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { teamApi, contributionApi } from '../lib/api';
-import { Users, FileText, TrendingUp, Plus } from 'lucide-react';
+import { Users, FileText, TrendingUp, Plus, Copy, Check } from 'lucide-react';
 import type { Team, Contribution } from '../types';
 
 export function Dashboard() {
+  const [copiedTeamId, setCopiedTeamId] = useState<number | null>(null);
+
   const { data: teams } = useQuery({
     queryKey: ['teams'],
     queryFn: async () => {
@@ -24,6 +26,12 @@ export function Dashboard() {
 
   const totalScore = myContributions?.reduce((sum, c) => sum + c.reputation_score, 0) || 0;
   const totalVerifications = myContributions?.reduce((sum, c) => sum + c.verification_count, 0) || 0;
+
+  const copyInviteCode = (teamId: number, inviteCode: string) => {
+    navigator.clipboard.writeText(inviteCode);
+    setCopiedTeamId(teamId);
+    setTimeout(() => setCopiedTeamId(null), 2000);
+  };
 
   return (
     <div className="space-y-6">
@@ -99,26 +107,57 @@ export function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {teams.map((team) => (
-                <Link
+                <div
                   key={team.id}
-                  to={`/teams/${team.id}`}
                   className="block p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition"
                 >
-                  <h3 className="font-semibold text-gray-900">{team.name}</h3>
-                  {team.description && (
-                    <p className="text-sm text-gray-600 mt-1">{team.description}</p>
-                  )}
-                  <div className="mt-2 flex items-center text-sm text-gray-500">
-                    <Users className="h-4 w-4 mr-1" />
-                    {team.member_count} members
-                    <span className="mx-2">•</span>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      team.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {team.status}
-                    </span>
+                  <Link to={`/teams/${team.id}`}>
+                    <h3 className="font-semibold text-gray-900">{team.name}</h3>
+                    {team.description && (
+                      <p className="text-sm text-gray-600 mt-1">{team.description}</p>
+                    )}
+                    <div className="mt-2 flex items-center text-sm text-gray-500">
+                      <Users className="h-4 w-4 mr-1" />
+                      {team.member_count} members
+                      <span className="mx-2">•</span>
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        team.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {team.status}
+                      </span>
+                    </div>
+                  </Link>
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 mr-2">
+                        <p className="text-xs text-gray-500 mb-1">Invite Code</p>
+                        <code className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-900 font-mono">
+                          {team.invite_code}
+                        </code>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          copyInviteCode(team.id, team.invite_code);
+                        }}
+                        className="px-3 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 flex items-center"
+                        title="Copy invite code"
+                      >
+                        {copiedTeamId === team.id ? (
+                          <>
+                            <Check className="h-3 w-3 mr-1" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
