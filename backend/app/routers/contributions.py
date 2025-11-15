@@ -6,7 +6,7 @@ from ..database import get_db
 from ..schemas import ContributionCreate, ContributionResponse, UserInTeam
 from ..services import ContributionService, TeamService
 from ..security import get_current_active_user
-from ..models import User, ContributionType, Contribution
+from ..models import User, ContributionType, Contribution, Team
 
 router = APIRouter(prefix="/contributions", tags=["Contributions"])
 
@@ -53,17 +53,36 @@ async def create_contribution(
         )
 
     # Build response with contributor info
-    response = ContributionResponse.from_orm(contribution)
-    response.contributor = UserInTeam(
+    contributor_data = UserInTeam(
         id=current_user.id,
         username=current_user.username,
         full_name=current_user.full_name,
         role=role
     )
-    response.verification_count = 0
-    response.flag_count = 0
-    response.verified_by_current_user = False
-    response.flagged_by_current_user = False
+
+    response = ContributionResponse(
+        id=contribution.id,
+        uuid=contribution.uuid,
+        title=contribution.title,
+        description=contribution.description,
+        contribution_type=contribution.contribution_type,
+        external_link=contribution.external_link,
+        self_assessed_impact=contribution.self_assessed_impact,
+        file_path=contribution.file_path,
+        file_hash=contribution.file_hash,
+        reputation_score=contribution.reputation_score,
+        block_id=contribution.block_id,
+        block_hash=contribution.block_hash,
+        team_id=contribution.team_id,
+        contributor_id=contribution.contributor_id,
+        contributor=contributor_data,
+        verification_count=0,
+        flag_count=0,
+        verified_by_current_user=False,
+        flagged_by_current_user=False,
+        created_at=contribution.created_at,
+        updated_at=contribution.updated_at
+    )
 
     return response
 
@@ -94,8 +113,7 @@ async def get_team_contributions(
         # Get contributor info and role
         contributor_role = TeamService.get_user_role_in_team(db, contrib.contributor_id, team_id)
 
-        contrib_resp = ContributionResponse.from_orm(contrib)
-        contrib_resp.contributor = UserInTeam(
+        contributor_data = UserInTeam(
             id=contrib.contributor.id,
             username=contrib.contributor.username,
             full_name=contrib.contributor.full_name,
@@ -103,15 +121,39 @@ async def get_team_contributions(
         )
 
         # Count verifications and flags
-        contrib_resp.verification_count = len(contrib.verifications)
-        contrib_resp.flag_count = len(contrib.flags)
+        verification_count = len(contrib.verifications)
+        flag_count = len(contrib.flags)
 
         # Check if current user verified/flagged
-        contrib_resp.verified_by_current_user = any(
+        verified_by_current_user = any(
             v.verifier_id == current_user.id for v in contrib.verifications
         )
-        contrib_resp.flagged_by_current_user = any(
+        flagged_by_current_user = any(
             f.flagger_id == current_user.id for f in contrib.flags
+        )
+
+        contrib_resp = ContributionResponse(
+            id=contrib.id,
+            uuid=contrib.uuid,
+            title=contrib.title,
+            description=contrib.description,
+            contribution_type=contrib.contribution_type,
+            external_link=contrib.external_link,
+            self_assessed_impact=contrib.self_assessed_impact,
+            file_path=contrib.file_path,
+            file_hash=contrib.file_hash,
+            reputation_score=contrib.reputation_score,
+            block_id=contrib.block_id,
+            block_hash=contrib.block_hash,
+            team_id=contrib.team_id,
+            contributor_id=contrib.contributor_id,
+            contributor=contributor_data,
+            verification_count=verification_count,
+            flag_count=flag_count,
+            verified_by_current_user=verified_by_current_user,
+            flagged_by_current_user=flagged_by_current_user,
+            created_at=contrib.created_at,
+            updated_at=contrib.updated_at
         )
 
         response.append(contrib_resp)
@@ -135,18 +177,36 @@ async def get_my_contributions(
         # Get role in team
         role = TeamService.get_user_role_in_team(db, current_user.id, contrib.team_id)
 
-        contrib_resp = ContributionResponse.from_orm(contrib)
-        contrib_resp.contributor = UserInTeam(
+        contributor_data = UserInTeam(
             id=current_user.id,
             username=current_user.username,
             full_name=current_user.full_name,
             role=role
         )
 
-        contrib_resp.verification_count = len(contrib.verifications)
-        contrib_resp.flag_count = len(contrib.flags)
-        contrib_resp.verified_by_current_user = False  # Own contribution
-        contrib_resp.flagged_by_current_user = False
+        contrib_resp = ContributionResponse(
+            id=contrib.id,
+            uuid=contrib.uuid,
+            title=contrib.title,
+            description=contrib.description,
+            contribution_type=contrib.contribution_type,
+            external_link=contrib.external_link,
+            self_assessed_impact=contrib.self_assessed_impact,
+            file_path=contrib.file_path,
+            file_hash=contrib.file_hash,
+            reputation_score=contrib.reputation_score,
+            block_id=contrib.block_id,
+            block_hash=contrib.block_hash,
+            team_id=contrib.team_id,
+            contributor_id=contrib.contributor_id,
+            contributor=contributor_data,
+            verification_count=len(contrib.verifications),
+            flag_count=len(contrib.flags),
+            verified_by_current_user=False,  # Own contribution
+            flagged_by_current_user=False,
+            created_at=contrib.created_at,
+            updated_at=contrib.updated_at
+        )
 
         response.append(contrib_resp)
 
@@ -181,21 +241,39 @@ async def get_contribution(
         db, contribution.contributor_id, contribution.team_id
     )
 
-    response = ContributionResponse.from_orm(contribution)
-    response.contributor = UserInTeam(
+    contributor_data = UserInTeam(
         id=contribution.contributor.id,
         username=contribution.contributor.username,
         full_name=contribution.contributor.full_name,
         role=contributor_role
     )
 
-    response.verification_count = len(contribution.verifications)
-    response.flag_count = len(contribution.flags)
-    response.verified_by_current_user = any(
-        v.verifier_id == current_user.id for v in contribution.verifications
-    )
-    response.flagged_by_current_user = any(
-        f.flagger_id == current_user.id for f in contribution.flags
+    response = ContributionResponse(
+        id=contribution.id,
+        uuid=contribution.uuid,
+        title=contribution.title,
+        description=contribution.description,
+        contribution_type=contribution.contribution_type,
+        external_link=contribution.external_link,
+        self_assessed_impact=contribution.self_assessed_impact,
+        file_path=contribution.file_path,
+        file_hash=contribution.file_hash,
+        reputation_score=contribution.reputation_score,
+        block_id=contribution.block_id,
+        block_hash=contribution.block_hash,
+        team_id=contribution.team_id,
+        contributor_id=contribution.contributor_id,
+        contributor=contributor_data,
+        verification_count=len(contribution.verifications),
+        flag_count=len(contribution.flags),
+        verified_by_current_user=any(
+            v.verifier_id == current_user.id for v in contribution.verifications
+        ),
+        flagged_by_current_user=any(
+            f.flagger_id == current_user.id for f in contribution.flags
+        ),
+        created_at=contribution.created_at,
+        updated_at=contribution.updated_at
     )
 
     return response
