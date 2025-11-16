@@ -92,10 +92,15 @@ async def get_team_contributions(
     team_id: int,
     skip: int = 0,
     limit: int = 50,
+    contributor_id: Optional[int] = None,
+    contribution_type: Optional[ContributionType] = None,
+    search: Optional[str] = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all contributions for a team"""
+    """Get all contributions for a team with filtering, sorting, and search"""
     from ..models import Verification, Flag
 
     # Check if user is a member
@@ -106,7 +111,9 @@ async def get_team_contributions(
             detail="Not a member of this team"
         )
 
-    contributions = ContributionService.get_team_contributions(db, team_id, skip, limit)
+    contributions = ContributionService.get_team_contributions(
+        db, team_id, skip, limit, contributor_id, contribution_type, search, sort_by, sort_order
+    )
 
     response = []
     for contrib in contributions:

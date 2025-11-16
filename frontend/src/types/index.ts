@@ -33,6 +33,7 @@ export interface UserInTeam {
   username: string;
   full_name?: string;
   role: UserRole;
+  reputation?: ReputationBreakdown;
 }
 
 export interface Team {

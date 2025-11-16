@@ -21,24 +21,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check if user is logged in
     const token = localStorage.getItem('token');
     if (token) {
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        setLoading(false);
+        console.error('Auth check timed out');
+      }, 5000); // 5 second timeout
+
       authApi
         .getCurrentUser()
-        .then((res) => setUser(res.data))
-        .catch(() => {
-          localStorage.removeItem('token');
+        .then((res) => {
+          clearTimeout(timeoutId);
+          setUser(res.data);
+          setLoading(false);
         })
-        .finally(() => setLoading(false));
+        .catch((error) => {
+          clearTimeout(timeoutId);
+          console.error('Auth check failed:', error);
+          localStorage.removeItem('token');
+          setLoading(false);
+        });
     } else {
       setLoading(false);
     }
   }, []);
 
   const login = async (credentials: LoginCredentials) => {
-    const response = await authApi.login(credentials);
-    localStorage.setItem('token', response.data.access_token);
+    try {
+      const response = await authApi.login(credentials);
+      localStorage.setItem('token', response.data.access_token);
 
-    const userResponse = await authApi.getCurrentUser();
-    setUser(userResponse.data);
+      const userResponse = await authApi.getCurrentUser();
+      setUser(userResponse.data);
+    } catch (error) {
+      // Remove token if login fails
+      localStorage.removeItem('token');
+      throw error; // Re-throw to let the Login component handle it
+    }
   };
 
   const register = async (data: RegisterData) => {

@@ -1,7 +1,10 @@
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from .models import UserRole, ContributionType, ProjectStatus
+
+if TYPE_CHECKING:
+    from typing import ForwardRef
 
 
 # User schemas
@@ -34,6 +37,7 @@ class UserInTeam(BaseModel):
     username: str
     full_name: Optional[str]
     role: UserRole
+    reputation: Optional["ReputationBreakdown"] = None
 
     class Config:
         from_attributes = True
@@ -155,6 +159,9 @@ class ReputationBreakdown(BaseModel):
     instructor_verified: int
     flagged_contributions: int
     total_score: float
+
+# Update forward references after ReputationBreakdown is defined
+UserInTeam.model_rebuild()
 
 
 class UserReputation(BaseModel):

@@ -119,7 +119,10 @@ async def get_team_members(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all members of a team"""
+    """Get all members of a team with reputation (only visible to managers)"""
+    from ..models import Team
+    from ..services import ReputationService
+    
     # Check if user is a member
     role = TeamService.get_user_role_in_team(db, current_user.id, team_id)
     if not role:
@@ -128,17 +131,49 @@ async def get_team_members(
             detail="Not a member of this team"
         )
 
-    members_with_roles = TeamService.get_team_members(db, team_id)
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team not found"
+        )
 
-    return [
-        UserInTeam(
+    members_with_roles = TeamService.get_team_members(db, team_id)
+    from ..models import UserRole
+    is_manager = team.created_by == current_user.id or role in [UserRole.INSTRUCTOR, UserRole.MANAGER]
+
+    result = []
+    for user, user_role in members_with_roles:
+        # Only include reputation if user is manager
+        reputation_data = None
+        if is_manager:
+            try:
+                reputation = ReputationService.get_user_reputation(db, user.id, team_id)
+                from ..schemas import ReputationBreakdown
+                reputation_data = ReputationBreakdown(
+                    total_score=reputation.total_score,
+                    total_contributions=reputation.total_contributions,
+                    verified_contributions=reputation.verified_contributions,
+                    instructor_verified=reputation.instructor_verified,
+                    flagged_contributions=reputation.flagged_contributions
+                )
+            except Exception as e:
+                # If reputation calculation fails, just skip it and continue
+                import logging
+                logging.warning(f"Failed to get reputation for user {user.id} in team {team_id}: {str(e)}")
+                # Continue without reputation data - don't let this block the response
+        
+        # Always create member, even without reputation
+        member = UserInTeam(
             id=user.id,
             username=user.username,
             full_name=user.full_name,
-            role=role
+            role=user_role,
+            reputation=reputation_data
         )
-        for user, role in members_with_roles
-    ]
+        result.append(member)
+
+    return result
 
 
 @router.post("/{team_id}/freeze", status_code=status.HTTP_200_OK)

@@ -7,7 +7,7 @@ import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { TeamDetail } from './pages/TeamDetail';
 import { SubmitContribution } from './pages/SubmitContribution';
-import { Leaderboard } from './pages/Leaderboard';
+import { MemberContributions } from './pages/MemberContributions';
 import { CreateTeam } from './pages/CreateTeam';
 import { JoinTeam } from './pages/JoinTeam';
 
@@ -87,7 +87,7 @@ function App() {
               <Route path="teams/join" element={<JoinTeam />} />
               <Route path="teams/:teamId" element={<TeamDetail />} />
               <Route path="teams/:teamId/submit" element={<SubmitContribution />} />
-              <Route path="teams/:teamId/leaderboard" element={<Leaderboard />} />
+              <Route path="teams/:teamId/members/:memberId" element={<MemberContributions />} />
             </Route>
 
             {/* Catch all */}

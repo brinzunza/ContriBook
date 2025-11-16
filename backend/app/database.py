@@ -7,7 +7,11 @@ from .config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    echo=settings.DEBUG
+    echo=settings.DEBUG,
+    pool_timeout=5,  # Timeout for getting connection from pool
+    connect_args={
+        "connect_timeout": 5,  # Connection timeout in seconds
+    }
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from typing import List, Optional, Tuple
 from fastapi import UploadFile
 import aiofiles
 import os
 import uuid
 
-from .models import User, Team, Contribution, Verification, Flag, UserRole, team_members, ProjectStatus
+from .models import User, Team, Contribution, Verification, Flag, UserRole, team_members, ProjectStatus, ContributionType
 from .schemas import (
     UserCreate, TeamCreate, ContributionCreate, VerificationCreate, FlagCreate,
     ReputationBreakdown, UserReputation
@@ -305,12 +305,59 @@ class ContributionService:
         db: Session,
         team_id: int,
         skip: int = 0,
-        limit: int = 50
+        limit: int = 50,
+        contributor_id: Optional[int] = None,
+        contribution_type: Optional[ContributionType] = None,
+        search: Optional[str] = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc"
     ) -> List[Contribution]:
-        """Get all contributions for a team"""
-        return db.query(Contribution).filter(
-            Contribution.team_id == team_id
-        ).order_by(Contribution.created_at.desc()).offset(skip).limit(limit).all()
+        """Get all contributions for a team with filtering, sorting, and search"""
+        query = db.query(Contribution).filter(Contribution.team_id == team_id)
+        
+        # Filter by contributor
+        if contributor_id:
+            query = query.filter(Contribution.contributor_id == contributor_id)
+        
+        # Filter by contribution type
+        if contribution_type:
+            query = query.filter(Contribution.contribution_type == contribution_type)
+        
+        # Search in title and description
+        if search:
+            search_term = f"%{search.lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(Contribution.title).like(search_term),
+                    func.lower(Contribution.description).like(search_term)
+                )
+            )
+        
+        # Sorting
+        if sort_by == "verification_count":
+            # Sort by number of verifications (requires subquery)
+            from ..models import Verification
+            verification_subquery = db.query(
+                Verification.contribution_id,
+                func.count(Verification.id).label('verification_count')
+            ).group_by(Verification.contribution_id).subquery()
+            
+            query = query.outerjoin(
+                verification_subquery,
+                Contribution.id == verification_subquery.c.contribution_id
+            )
+            if sort_order.lower() == "asc":
+                query = query.order_by(func.coalesce(verification_subquery.c.verification_count, 0).asc())
+            else:
+                query = query.order_by(func.coalesce(verification_subquery.c.verification_count, 0).desc())
+        else:
+            sort_column = getattr(Contribution, sort_by, Contribution.created_at)
+            if sort_order.lower() == "asc":
+                query = query.order_by(sort_column.asc())
+            else:
+                query = query.order_by(sort_column.desc())
+        
+        return query.offset(skip).limit(limit).all()
 
     @staticmethod
     def get_user_contributions(

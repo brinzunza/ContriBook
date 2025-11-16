@@ -1,40 +1,73 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { teamApi, contributionApi, reputationApi, verificationApi } from '../lib/api';
-import { Users, FileText, Award, Plus, Check, Flag, Copy, Archive } from 'lucide-react';
-import type { Contribution } from '../types';
+import { teamApi, contributionApi, verificationApi } from '../lib/api';
+import { Users, FileText, Plus, Check, Flag, Copy, Archive, Search, Filter, ArrowUpDown } from 'lucide-react';
+import type { Contribution, ContributionType } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
 export function TeamDetail() {
   const { teamId } = useParams<{ teamId: string }>();
   const { user } = useAuth();
-  const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterContributor, setFilterContributor] = useState<number | null>(null);
+  const [sortBy, setSortBy] = useState<string>('created_at');
+  const [sortOrder, setSortOrder] = useState<string>('desc');
 
-  const { data: team, refetch: refetchTeam } = useQuery({
+  const { data: team, refetch: refetchTeam, isLoading: teamLoading, error: teamError } = useQuery({
     queryKey: ['team', teamId],
     queryFn: async () => {
       const response = await teamApi.getTeam(Number(teamId));
       return response.data;
     },
-  });
-
-  const { data: contributions, refetch: refetchContributions } = useQuery({
-    queryKey: ['team-contributions', teamId],
-    queryFn: async () => {
-      const response = await contributionApi.getTeamContributions(Number(teamId));
-      return response.data;
+    enabled: !!teamId,
+    retry: 1,
+    onError: (error) => {
+      console.error('Error loading team:', error);
     },
   });
 
-  const { data: leaderboard } = useQuery({
-    queryKey: ['leaderboard', teamId],
+  const { data: members, isLoading: membersLoading, error: membersError } = useQuery({
+    queryKey: ['team-members', teamId],
     queryFn: async () => {
-      const response = await reputationApi.getTeamLeaderboard(Number(teamId));
+      const response = await teamApi.getTeamMembers(Number(teamId));
       return response.data;
     },
+    enabled: !!teamId,
+    retry: 1,
+    onError: (error) => {
+      console.error('Error loading members:', error);
+    },
   });
+
+  const { data: contributions, refetch: refetchContributions, isLoading: contributionsLoading, error: contributionsError } = useQuery({
+    queryKey: ['team-contributions', teamId, searchQuery, filterType, filterContributor, sortBy, sortOrder],
+    queryFn: async () => {
+      const params: any = {
+        search: searchQuery || undefined,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      };
+      if (filterType !== 'all') {
+        params.contribution_type = filterType;
+      }
+      if (filterContributor) {
+        params.contributor_id = filterContributor;
+      }
+      const response = await contributionApi.getTeamContributions(Number(teamId), params);
+      return response.data;
+    },
+    enabled: !!teamId,
+    retry: 1,
+    onError: (error) => {
+      console.error('Error loading contributions:', error);
+    },
+  });
+
+  const isLoading = teamLoading || membersLoading || contributionsLoading;
+  const hasError = teamError || membersError || contributionsError;
 
   const handleVerify = async (contributionId: number) => {
     try {
@@ -68,6 +101,47 @@ export function TeamDetail() {
       alert(err.response?.data?.detail || 'Failed to archive team');
     }
   };
+
+  // Show loading only if we don't have team data yet
+  if (teamLoading && !team) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <div className="text-gray-600">Loading team data...</div>
+          {teamError && (
+            <div className="text-sm text-red-600 mt-2">
+              Error: {(teamError as any)?.response?.data?.detail || (teamError as any)?.message}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <div className="text-red-600">Error loading team data. Please try refreshing the page.</div>
+          <div className="text-sm text-gray-500 mt-2">
+            {teamError && `Team: ${(teamError as any)?.response?.data?.detail || 'Unknown error'}`}
+            {membersError && `Members: ${(membersError as any)?.response?.data?.detail || 'Unknown error'}`}
+            {contributionsError && `Contributions: ${(contributionsError as any)?.response?.data?.detail || 'Unknown error'}`}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!team) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <div className="text-red-600">Team not found</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -141,19 +215,115 @@ export function TeamDetail() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8">
-          <button className="py-4 px-1 border-b-2 border-blue-600 text-blue-600 font-medium">
-            Feed
-          </button>
-          <Link
-            to={`/teams/${teamId}/leaderboard`}
-            className="py-4 px-1 border-b-2 border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300 font-medium"
-          >
-            Leaderboard
-          </Link>
-        </nav>
+      {/* Members List */}
+      {members && members.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Team Members</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {members.map((member) => {
+              const isManager = team?.created_by === user?.id;
+              return (
+                <Link
+                  key={member.id}
+                  to={`/teams/${teamId}/members/${member.id}`}
+                  className="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-900">{member.full_name || member.username}</h3>
+                      <p className="text-sm text-gray-600">{member.username}</p>
+                      <span className="text-xs text-gray-500 capitalize">{member.role}</span>
+                    </div>
+                    {isManager && member.reputation && (
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-gray-900">
+                          {member.reputation.total_score?.toFixed(1) || '0.0'}
+                        </div>
+                        <div className="text-xs text-gray-600">points</div>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Filters and Search */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* Search */}
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search contributions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Filter by Type */}
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-500" />
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Types</option>
+              <option value="git">Git</option>
+              <option value="document">Document</option>
+              <option value="image">Image</option>
+              <option value="meeting">Meeting</option>
+              <option value="mental">Mental</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          {/* Filter by Contributor */}
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-gray-500" />
+            <select
+              value={filterContributor || ''}
+              onChange={(e) => setFilterContributor(e.target.value ? Number(e.target.value) : null)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Contributors</option>
+              {members?.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.full_name || member.username}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort */}
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="h-4 w-4 text-gray-500" />
+            <select
+              value={`${sortBy}_${sortOrder}`}
+              onChange={(e) => {
+                const [by, order] = e.target.value.split('_');
+                setSortBy(by);
+                setSortOrder(order);
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="created_at_desc">Newest First</option>
+              <option value="created_at_asc">Oldest First</option>
+              <option value="reputation_score_desc">Highest Score</option>
+              <option value="reputation_score_asc">Lowest Score</option>
+              <option value="verification_count_desc">Most Verified</option>
+              <option value="title_asc">Title (A-Z)</option>
+              <option value="title_desc">Title (Z-A)</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Contributions Feed */}
