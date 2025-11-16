@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
     BLOCKCHAIN_DB_PATH: str = "./blockchain.db"
+    BLOCKCHAIN_STORAGE_PATH: str = "./blockchain_storage"
 
     # Storage
     STORAGE_PATH: str = "./storage"

@@ -4,14 +4,17 @@ import { useQuery } from '@tanstack/react-query';
 import { teamApi, contributionApi } from '../lib/api';
 import { Users, FileText, TrendingUp, Plus, Copy, Check } from 'lucide-react';
 import type { Team, Contribution } from '../types';
+import { ContributionHeatmap } from '../components/ContributionHeatmap';
 
 export function Dashboard() {
   const [copiedTeamId, setCopiedTeamId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
 
   const { data: teams } = useQuery({
-    queryKey: ['teams'],
+    queryKey: ['teams', activeTab],
     queryFn: async () => {
-      const response = await teamApi.getMyTeams();
+      const status = activeTab === 'active' ? 'active' : 'frozen';
+      const response = await teamApi.getMyTeams(status);
       return response.data;
     },
   });
@@ -82,27 +85,58 @@ export function Dashboard() {
       {/* My Teams */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">My Teams</h2>
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-900">My Teams</h2>
+            {/* Tabs */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setActiveTab('active')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                  activeTab === 'active'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Active
+              </button>
+              <button
+                onClick={() => setActiveTab('archived')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                  activeTab === 'archived'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Archived
+              </button>
+            </div>
+          </div>
         </div>
         <div className="p-6">
           {!teams || teams.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No teams yet. Create or join one to get started!</p>
-              <div className="mt-4 space-x-4">
-                <Link
-                  to="/teams/new"
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Create Team
-                </Link>
-                <Link
-                  to="/teams/join"
-                  className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-                >
-                  Join Team
-                </Link>
-              </div>
+              {activeTab === 'active' ? (
+                <>
+                  <p className="text-gray-600">No active teams yet. Create or join one to get started!</p>
+                  <div className="mt-4 space-x-4">
+                    <Link
+                      to="/teams/new"
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Create Team
+                    </Link>
+                    <Link
+                      to="/teams/join"
+                      className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                    >
+                      Join Team
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-600">No archived teams yet.</p>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -163,6 +197,11 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Contribution Heatmap */}
+      {myContributions && myContributions.length > 0 && (
+        <ContributionHeatmap contributions={myContributions} />
+      )}
 
       {/* Recent Contributions */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">

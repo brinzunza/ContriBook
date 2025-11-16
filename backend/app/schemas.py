@@ -63,6 +63,7 @@ class TeamResponse(TeamBase):
     id: int
     invite_code: str
     status: ProjectStatus
+    created_by: int
     created_at: datetime
     frozen_at: Optional[datetime] = None
     member_count: Optional[int] = 0

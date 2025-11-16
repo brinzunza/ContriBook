@@ -71,12 +71,11 @@ class Block:
 class Blockchain:
     """Simplified blockchain implementation using SQLite"""
 
-    def __init__(self, db_path: str = None):
-        self.db_path = db_path or settings.BLOCKCHAIN_DB_PATH
-        self.init_chain()
+    def __init__(self, db_path: str):
+        self.db_path = db_path
 
-    def init_chain(self):
-        """Initialize the blockchain database"""
+    def init_chain(self, team_id: int):
+        """Initialize the blockchain database for a specific team"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
@@ -107,15 +106,15 @@ class Blockchain:
         conn.commit()
 
         # Create genesis block if chain is empty
-        cursor.execute("SELECT COUNT(*) FROM blocks")
+        cursor.execute("SELECT COUNT(*) FROM blocks WHERE team_id = ?", (team_id,))
         if cursor.fetchone()[0] == 0:
-            self._create_genesis_block(cursor)
+            self._create_genesis_block(cursor, team_id)
             conn.commit()
 
         conn.close()
 
-    def _create_genesis_block(self, cursor):
-        """Create the first block in the chain"""
+    def _create_genesis_block(self, cursor, team_id: int):
+        """Create the first block in the chain for a specific team"""
         genesis_block = Block(
             block_id=0,
             timestamp=datetime.utcnow().isoformat(),
@@ -123,7 +122,7 @@ class Blockchain:
             contributor_id=0,
             contribution_type="genesis",
             file_hash=None,
-            metadata={"message": "ContriBook Genesis Block"},
+            metadata={"message": f"ContriBook Genesis Block for team {team_id}"},
             previous_hash="0" * 64,
             verification_count=0,
             reputation_score=0.0
@@ -147,7 +146,7 @@ class Blockchain:
             genesis_block.verification_count,
             genesis_block.reputation_score,
             genesis_block.hash,
-            0  # team_id for genesis
+            team_id  # Use the provided team_id for genesis
         ))
 
     def add_block(
@@ -166,12 +165,13 @@ class Blockchain:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        # Get the last block
-        cursor.execute("SELECT hash FROM blocks ORDER BY block_id DESC LIMIT 1")
-        previous_hash = cursor.fetchone()[0]
+        # Get the last block for this team
+        cursor.execute("SELECT hash FROM blocks WHERE team_id = ? ORDER BY block_id DESC LIMIT 1", (team_id,))
+        result = cursor.fetchone()
+        previous_hash = result[0] if result else "0" * 64 # Fallback for first block after genesis
 
-        # Get next block ID
-        cursor.execute("SELECT MAX(block_id) FROM blocks")
+        # Get next block ID for this team
+        cursor.execute("SELECT MAX(block_id) FROM blocks WHERE team_id = ?", (team_id,))
         last_id = cursor.fetchone()[0]
         new_block_id = (last_id or 0) + 1
 
@@ -226,6 +226,16 @@ class Blockchain:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
+        # Check if block exists first
+        cursor.execute("""
+            SELECT block_id FROM blocks WHERE contribution_id = ?
+        """, (contribution_id,))
+        
+        if not cursor.fetchone():
+            # Block doesn't exist, nothing to update
+            conn.close()
+            return
+
         cursor.execute("""
             UPDATE blocks
             SET verification_count = ?, reputation_score = ?
@@ -270,13 +280,17 @@ class Blockchain:
         cursor = conn.cursor()
 
         if team_id:
+            # Fetch blocks for the specific team, plus the global genesis block (block_id = 0, team_id = 0)
             cursor.execute("""
                 SELECT * FROM blocks
-                WHERE team_id = ? OR block_id = 0
+                WHERE team_id = ? OR (block_id = 0 AND team_id = 0)
                 ORDER BY block_id DESC
                 LIMIT ?
             """, (team_id, limit))
         else:
+            # This case should ideally not be hit if we're always passing team_id.
+            # If it is, it might imply a global chain view, which we're moving away from.
+            # For now, it will return all blocks across all teams in this specific db_path.
             cursor.execute("""
                 SELECT * FROM blocks
                 ORDER BY block_id DESC
@@ -305,16 +319,31 @@ class Blockchain:
 
         return blocks
 
-    def verify_chain_integrity(self) -> bool:
-        """Verify the integrity of the blockchain"""
+    def verify_chain_integrity(self, team_id: int) -> bool:
+        """Verify the integrity of the blockchain for a specific team"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM blocks ORDER BY block_id ASC")
+        cursor.execute("SELECT * FROM blocks WHERE team_id = ? ORDER BY block_id ASC", (team_id,))
         rows = cursor.fetchall()
         conn.close()
 
-        for i in range(1, len(rows)):
+        if not rows:
+            return True # An empty chain or a chain with only genesis block is considered valid
+
+        # Special handling for genesis block if it's the first in the team's sequence
+        # Assuming block_id 0 is the genesis for the *entire* system, and team's blocks start from 1
+        # If a team has its own genesis, block_id=0, then we start checking from block_id=1
+        start_index = 0
+        if rows[0][0] == 0: # If the first block is the global genesis block
+            # We don't verify the global genesis block's previous hash against a team block.
+            # We start verification from the first actual team block.
+            if len(rows) > 1:
+                start_index = 1
+            else:
+                return True # Only global genesis present, considered valid
+
+        for i in range(start_index, len(rows)):
             current_row = rows[i]
             previous_row = rows[i - 1]
 
@@ -359,6 +388,23 @@ class Blockchain:
         conn.commit()
         conn.close()
 
+    def unfreeze_chain(self):
+        """Unfreeze the blockchain (allow new blocks)"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO chain_metadata (key, value)
+            VALUES ('frozen', 'false')
+        """)
+
+        cursor.execute("""
+            DELETE FROM chain_metadata WHERE key = 'frozen_at'
+        """)
+
+        conn.commit()
+        conn.close()
+
     def is_frozen(self) -> bool:
         """Check if blockchain is frozen"""
         conn = sqlite3.connect(self.db_path)
@@ -373,6 +419,4 @@ class Blockchain:
 
         return result and result[0] == 'true'
 
-
-# Global blockchain instance
-blockchain = Blockchain()
+# Removed global blockchain instance

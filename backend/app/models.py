@@ -68,6 +68,7 @@ class Team(Base):
     created_by = Column(Integer, ForeignKey('users.id'))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     frozen_at = Column(DateTime(timezone=True), nullable=True)
+    blockchain_db_path = Column(String, nullable=True, unique=True)
 
     # Relationships
     members = relationship("User", secondary=team_members, back_populates="teams")

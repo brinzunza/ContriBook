@@ -2,15 +2,17 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { teamApi, contributionApi, reputationApi, verificationApi } from '../lib/api';
-import { Users, FileText, Award, Plus, Check, Flag, Copy } from 'lucide-react';
+import { Users, FileText, Award, Plus, Check, Flag, Copy, Archive } from 'lucide-react';
 import type { Contribution } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 export function TeamDetail() {
   const { teamId } = useParams<{ teamId: string }>();
+  const { user } = useAuth();
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
-  const { data: team } = useQuery({
+  const { data: team, refetch: refetchTeam } = useQuery({
     queryKey: ['team', teamId],
     queryFn: async () => {
       const response = await teamApi.getTeam(Number(teamId));
@@ -38,8 +40,9 @@ export function TeamDetail() {
     try {
       await verificationApi.verifyContribution(contributionId);
       refetchContributions();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to verify:', err);
+      alert(err.response?.data?.detail || 'Failed to verify contribution');
     }
   };
 
@@ -48,6 +51,21 @@ export function TeamDetail() {
       navigator.clipboard.writeText(team.invite_code);
       setCopiedInvite(true);
       setTimeout(() => setCopiedInvite(false), 2000);
+    }
+  };
+
+  const handleArchiveTeam = async () => {
+    if (!window.confirm('Are you sure you want to archive this team? This will freeze all contributions and prevent new ones.')) {
+      return;
+    }
+
+    try {
+      await teamApi.freezeTeam(Number(teamId));
+      refetchTeam();
+      alert('Team archived successfully!');
+    } catch (err: any) {
+      console.error('Failed to archive team:', err);
+      alert(err.response?.data?.detail || 'Failed to archive team');
     }
   };
 
@@ -65,6 +83,15 @@ export function TeamDetail() {
               <div className="flex items-center">
                 <Users className="h-4 w-4 text-gray-500 mr-2" />
                 <span className="text-sm text-gray-700">{team?.member_count} members</span>
+              </div>
+              <div className="flex items-center">
+                <span className={`px-2 py-1 rounded text-xs ${
+                  team?.status === 'active' ? 'bg-green-100 text-green-800' :
+                  team?.status === 'frozen' ? 'bg-gray-100 text-gray-800' :
+                  'bg-blue-100 text-blue-800'
+                }`}>
+                  {team?.status === 'frozen' ? 'Archived' : team?.status}
+                </span>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-700">Invite Code:</span>
@@ -91,13 +118,26 @@ export function TeamDetail() {
               </div>
             </div>
           </div>
-          <Link
-            to={`/teams/${teamId}/submit`}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Submit Contribution
-          </Link>
+          <div className="flex gap-2">
+            {team?.status === 'active' && (
+              <Link
+                to={`/teams/${teamId}/submit`}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Submit Contribution
+              </Link>
+            )}
+            {team?.created_by === user?.id && team?.status === 'active' && (
+              <button
+                onClick={handleArchiveTeam}
+                className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                Archive Team
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -179,7 +219,7 @@ export function TeamDetail() {
                   )}
                 </div>
 
-                {!contribution.verified_by_current_user && (
+                {!contribution.verified_by_current_user && contribution.contributor_id !== user?.id && (
                   <button
                     onClick={() => handleVerify(contribution.id)}
                     className="inline-flex items-center px-3 py-1 bg-green-50 text-green-700 rounded-md hover:bg-green-100 text-sm font-medium"

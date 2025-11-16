@@ -12,7 +12,7 @@ from ..security import get_current_active_user
 from ..models import User, Team, UserRole, ProjectStatus
 from ..config import settings
 from ..utils import ensure_directory
-from ..blockchain import blockchain
+from ..blockchain import Blockchain
 
 router = APIRouter(prefix="/archive", tags=["Archive"])
 
@@ -61,7 +61,11 @@ async def export_team_data(
         zipf.writestr("team_info.json", json.dumps(team_data, indent=2))
 
         # Export blockchain data
-        chain_data = blockchain.get_chain(team_id, limit=10000)
+        if team.blockchain_db_path:
+            team_blockchain = Blockchain(db_path=team.blockchain_db_path)
+            chain_data = team_blockchain.get_chain(team_id=team_id, limit=10000)
+        else:
+            chain_data = []
         zipf.writestr("blockchain.json", json.dumps(chain_data, indent=2))
 
         # Export contributions metadata

@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 
 from ..database import get_db
 from ..schemas import VerificationCreate, VerificationResponse, FlagCreate, FlagResponse, UserInTeam
 from ..services import VerificationService, FlagService, TeamService
 from ..security import get_current_active_user
-from ..models import User, Contribution
+from ..models import User, Contribution, Verification, Flag
 
 router = APIRouter(prefix="/verifications", tags=["Verifications & Flags"])
 
@@ -41,22 +41,76 @@ async def verify_contribution(
         verification = VerificationService.verify_contribution(
             db, verification_data, current_user, contribution.team_id
         )
+        
+        # Reload verification with relationships to ensure verifier is loaded
+        verification = db.query(Verification).options(
+            joinedload(Verification.verifier)
+        ).filter(Verification.id == verification.id).first()
+        
+        if not verification:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve verification after creation"
+            )
+        
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except Exception as e:
+        # Log the full error for debugging
+        import logging
+        logging.error(f"Error verifying contribution: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to verify contribution: {str(e)}"
+        )
 
-    # Build response
-    response = VerificationResponse.from_orm(verification)
-    response.verifier = UserInTeam(
-        id=current_user.id,
-        username=current_user.username,
-        full_name=current_user.full_name,
-        role=role
-    )
+    # Build response - get verifier info from the relationship
+    try:
+        verifier_user = verification.verifier
+        verifier_info = UserInTeam(
+            id=verifier_user.id,
+            username=verifier_user.username,
+            full_name=verifier_user.full_name,
+            role=role
+        )
+        
+        # Create response with all data
+        response = VerificationResponse(
+            id=verification.id,
+            contribution_id=verification.contribution_id,
+            verifier_id=verification.verifier_id,
+            verifier=verifier_info,
+            verifier_role=verification.verifier_role,
+            comment=verification.comment,
+            created_at=verification.created_at
+        )
 
-    return response
+        return response
+    except Exception as e:
+        # If response building fails, log but still return success
+        # The verification was already saved to the database
+        import logging
+        logging.error(f"Error building verification response: {str(e)}", exc_info=True)
+        # Return a minimal response
+        return VerificationResponse(
+            id=verification.id,
+            contribution_id=verification.contribution_id,
+            verifier_id=verification.verifier_id,
+            verifier=UserInTeam(
+                id=current_user.id,
+                username=current_user.username,
+                full_name=current_user.full_name,
+                role=role
+            ),
+            verifier_role=verification.verifier_role,
+            comment=verification.comment,
+            created_at=verification.created_at
+        )
 
 
 @router.post("/flag", response_model=FlagResponse, status_code=status.HTTP_201_CREATED)
@@ -95,13 +149,23 @@ async def flag_contribution(
             detail=str(e)
         )
 
-    # Build response
-    response = FlagResponse.from_orm(flag)
-    response.flagger = UserInTeam(
-        id=current_user.id,
-        username=current_user.username,
-        full_name=current_user.full_name,
+    # Build response - get flagger info from the relationship
+    flagger_user = flag.flagger
+    flagger_info = UserInTeam(
+        id=flagger_user.id,
+        username=flagger_user.username,
+        full_name=flagger_user.full_name,
         role=role
+    )
+    
+    # Create response with all data
+    response = FlagResponse(
+        id=flag.id,
+        contribution_id=flag.contribution_id,
+        flagger_id=flag.flagger_id,
+        flagger=flagger_info,
+        reason=flag.reason,
+        created_at=flag.created_at
     )
 
     return response

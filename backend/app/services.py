@@ -3,8 +3,10 @@ from sqlalchemy import and_, func
 from typing import List, Optional, Tuple
 from fastapi import UploadFile
 import aiofiles
+import os
+import uuid
 
-from .models import User, Team, Contribution, Verification, Flag, UserRole, team_members
+from .models import User, Team, Contribution, Verification, Flag, UserRole, team_members, ProjectStatus
 from .schemas import (
     UserCreate, TeamCreate, ContributionCreate, VerificationCreate, FlagCreate,
     ReputationBreakdown, UserReputation
@@ -12,9 +14,10 @@ from .schemas import (
 from .security import get_password_hash, generate_invite_code, encrypt_file
 from .utils import (
     generate_uuid, calculate_file_hash, get_storage_path,
-    is_allowed_file_type, calculate_reputation_score
+    is_allowed_file_type, calculate_reputation_score, ensure_directory
 )
-from .blockchain import blockchain
+from .blockchain import Blockchain # Import the Blockchain class
+from .config import settings
 
 
 class UserService:
@@ -52,27 +55,49 @@ class TeamService:
     @staticmethod
     def create_team(db: Session, team_data: TeamCreate, creator: User) -> Team:
         """Create a new team"""
-        invite_code = generate_invite_code()
-        db_team = Team(
-            name=team_data.name,
-            description=team_data.description,
-            invite_code=invite_code,
-            created_by=creator.id
-        )
-        db.add(db_team)
-        db.flush()
+        try:
+            invite_code = generate_invite_code()
+            
+            # Generate a unique blockchain database file path for the team
+            blockchain_filename = f"team_blockchain_{uuid.uuid4().hex}.db"
+            blockchain_dir = os.path.join(settings.BLOCKCHAIN_STORAGE_PATH, str(creator.id))
+            ensure_directory(blockchain_dir) # Ensure the directory exists
+            blockchain_db_path = os.path.join(blockchain_dir, blockchain_filename)
 
-        # Add creator as instructor
-        stmt = team_members.insert().values(
-            team_id=db_team.id,
-            user_id=creator.id,
-            role=UserRole.INSTRUCTOR
-        )
-        db.execute(stmt)
+            db_team = Team(
+                name=team_data.name,
+                description=team_data.description,
+                invite_code=invite_code,
+                created_by=creator.id,
+                blockchain_db_path=blockchain_db_path,
+                status=ProjectStatus.ACTIVE # Ensure new teams are active
+            )
+            db.add(db_team)
+            db.flush()
 
-        db.commit()
-        db.refresh(db_team)
-        return db_team
+            # Initialize the new blockchain for the team
+            try:
+                team_blockchain = Blockchain(db_path=blockchain_db_path)
+                team_blockchain.init_chain(team_id=db_team.id) # This will create the genesis block
+            except Exception as e:
+                # If blockchain initialization fails, rollback and re-raise
+                db.rollback()
+                raise ValueError(f"Failed to initialize blockchain: {str(e)}")
+
+            # Add creator as instructor
+            stmt = team_members.insert().values(
+                team_id=db_team.id,
+                user_id=creator.id,
+                role=UserRole.INSTRUCTOR
+            )
+            db.execute(stmt)
+
+            db.commit()
+            db.refresh(db_team)
+            return db_team
+        except Exception as e:
+            db.rollback()
+            raise
 
     @staticmethod
     def join_team(db: Session, invite_code: str, user: User) -> Team:
@@ -143,8 +168,35 @@ class TeamService:
         team.frozen_at = datetime.utcnow()
         db.commit()
 
-        # Freeze blockchain
-        blockchain.freeze_chain()
+        if not team.blockchain_db_path:
+            raise ValueError("Team blockchain not initialized")
+
+        team_blockchain = Blockchain(db_path=team.blockchain_db_path)
+        team_blockchain.freeze_chain()
+
+    @staticmethod
+    def unfreeze_team(db: Session, team_id: int):
+        """Unfreeze a team (allow new contributions)"""
+        from datetime import datetime
+        from .models import ProjectStatus
+
+        team = db.query(Team).filter(Team.id == team_id).first()
+        if not team:
+            raise ValueError("Team not found")
+        
+        if team.status == ProjectStatus.ACTIVE:
+            raise ValueError("Team is already active and not frozen")
+
+        team.status = ProjectStatus.ACTIVE
+        team.frozen_at = None  # Clear frozen_at timestamp
+        db.commit()
+
+        # Unfreeze blockchain
+        if not team.blockchain_db_path:
+            raise ValueError("Team blockchain not initialized")
+
+        team_blockchain = Blockchain(db_path=team.blockchain_db_path)
+        team_blockchain.unfreeze_chain()
 
 
 class ContributionService:
@@ -158,6 +210,27 @@ class ContributionService:
         file: Optional[UploadFile] = None
     ) -> Contribution:
         """Create a new contribution"""
+        
+        team = db.query(Team).filter(Team.id == contribution_data.team_id).first()
+        if not team:
+            raise ValueError("Team not found.")
+
+        if not team.blockchain_db_path:
+            # Initialize blockchain for existing teams that don't have one
+            blockchain_filename = f"team_blockchain_{uuid.uuid4().hex}.db"
+            blockchain_dir = os.path.join(settings.BLOCKCHAIN_STORAGE_PATH, str(team.created_by))
+            ensure_directory(blockchain_dir)
+            blockchain_db_path = os.path.join(blockchain_dir, blockchain_filename)
+            team.blockchain_db_path = blockchain_db_path
+            db.commit()
+            
+            # Initialize the blockchain
+            team_blockchain = Blockchain(db_path=blockchain_db_path)
+            team_blockchain.init_chain(team_id=team.id)
+
+        if team.status == ProjectStatus.FROZEN:
+            raise ValueError("Team blockchain is frozen and cannot accept new contributions.")
+
         contribution_uuid = generate_uuid()
         file_path = None
         file_hash = None
@@ -203,7 +276,8 @@ class ContributionService:
         db.flush()
 
         # Add to blockchain
-        block = blockchain.add_block(
+        team_blockchain = Blockchain(db_path=team.blockchain_db_path)
+        block = team_blockchain.add_block(
             contribution_id=contribution_uuid,
             contributor_id=contributor.id,
             contribution_type=contribution_data.contribution_type.value,
@@ -309,6 +383,9 @@ class VerificationService:
 
         db.commit()
         db.refresh(db_verification)
+        
+        # Eagerly load the verifier relationship
+        db_verification.verifier  # This will trigger lazy loading if needed
 
         return db_verification
 
@@ -375,6 +452,14 @@ class ReputationService:
 
         if not contribution:
             return
+        
+        team = db.query(Team).filter(Team.id == contribution.team_id).first()
+        if not team:
+            raise ValueError("Team not found.")
+        
+        if not team.blockchain_db_path:
+            # If team doesn't have blockchain, skip blockchain update
+            return
 
         # Count verifications
         total_verifications = db.query(func.count(Verification.id)).filter(
@@ -407,12 +492,20 @@ class ReputationService:
         contribution.reputation_score = score
         db.commit()
 
-        # Update blockchain
-        blockchain.update_block_verification(
-            contribution_id=contribution.uuid,
-            verification_count=total_verifications,
-            reputation_score=score
-        )
+        # Update blockchain (non-critical - don't fail if this errors)
+        try:
+            if contribution.uuid:  # Only update if contribution has a UUID
+                team_blockchain = Blockchain(db_path=team.blockchain_db_path)
+                team_blockchain.update_block_verification(
+                    contribution_id=contribution.uuid,
+                    verification_count=total_verifications,
+                    reputation_score=score
+                )
+        except Exception as e:
+            # Log error but don't fail the verification
+            # The reputation score has already been updated in the database
+            import logging
+            logging.warning(f"Failed to update blockchain for contribution {contribution_id}: {str(e)}")
 
     @staticmethod
     def get_user_reputation(db: Session, user_id: int, team_id: int) -> ReputationBreakdown:

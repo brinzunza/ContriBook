@@ -41,6 +41,7 @@ export interface Team {
   description?: string;
   invite_code: string;
   status: ProjectStatus;
+  created_by: number;
   created_at: string;
   frozen_at?: string;
   member_count?: number;

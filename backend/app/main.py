@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 
 from .config import settings
 from .database import init_db
-from .blockchain import blockchain
 from .routers import auth, teams, contributions, verifications, reputation, blockchain as blockchain_router, archive
 from .utils import ensure_directory
 
@@ -20,14 +19,11 @@ async def lifespan(app: FastAPI):
     init_db()
     print("Database initialized")
 
-    # Initialize blockchain
-    blockchain.init_chain()
-    print("Blockchain initialized")
-
     # Ensure storage directories exist
     ensure_directory(settings.STORAGE_PATH)
     ensure_directory(settings.ENCRYPTED_STORAGE_PATH)
     ensure_directory(settings.ARCHIVE_PATH)
+    ensure_directory(settings.BLOCKCHAIN_STORAGE_PATH)
     print("Storage directories ready")
 
     yield
@@ -77,14 +73,11 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    # Verify blockchain integrity
-    is_chain_valid = blockchain.verify_chain_integrity()
-
+    # Health check - blockchain validation removed since each team has its own blockchain
     return JSONResponse(
         status_code=200,
         content={
-            "status": "healthy",
-            "blockchain_valid": is_chain_valid
+            "status": "healthy"
         }
     )
 
