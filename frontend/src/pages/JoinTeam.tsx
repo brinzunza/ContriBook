@@ -24,45 +24,43 @@ export function JoinTeam() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Join a Team</h1>
+    <div className="max-w-xl mx-auto">
+      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Join Team</h1>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-white rounded border border-gray-100 p-6 space-y-5">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
             {error}
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Invite Code *
-          </label>
+          <label className="block text-sm text-gray-700 mb-1">Invite Code *</label>
           <input
             type="text"
             required
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value)}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Enter the invite code from your team"
+            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-gray-400"
+            placeholder="Enter invite code"
           />
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-xs text-gray-500">
             Ask your team instructor or manager for the invite code.
           </p>
         </div>
 
-        <div className="flex space-x-4">
+        <div className="flex gap-3 pt-2">
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 disabled:opacity-50"
           >
             {loading ? 'Joining...' : 'Join Team'}
           </button>
           <button
             type="button"
             onClick={() => navigate('/dashboard')}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
           >
             Cancel
           </button>

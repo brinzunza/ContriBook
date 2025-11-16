@@ -1,8 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { teamApi, contributionApi } from '../lib/api';
-import { ArrowLeft, FileText, Check, Flag } from 'lucide-react';
-import type { Contribution } from '../types';
+import { ArrowLeft } from 'lucide-react';
 
 export function MemberContributions() {
   const { teamId, memberId } = useParams<{ teamId: string; memberId: string }>();
@@ -40,94 +39,82 @@ export function MemberContributions() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="flex items-center gap-4">
         <Link
           to={`/teams/${teamId}`}
-          className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-4"
+          className="text-gray-600 hover:text-gray-900"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Team
+          <ArrowLeft className="h-4 w-4" />
         </Link>
-        <h1 className="text-3xl font-bold text-gray-900">
-          {member?.full_name || member?.username}'s Contributions
-        </h1>
-        {team && (
-          <p className="text-gray-600 mt-2">
-            Team: <span className="font-medium">{team.name}</span>
-          </p>
-        )}
-        <div className="mt-4 flex items-center space-x-6">
-          <div>
-            <div className="text-2xl font-bold text-gray-900">{totalContributions}</div>
-            <div className="text-sm text-gray-600">Total Contributions</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-gray-900">{totalScore.toFixed(1)}</div>
-            <div className="text-sm text-gray-600">Total Score</div>
-          </div>
+        <div className="flex-1">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {member?.full_name || member?.username}'s Contributions
+          </h1>
+          {team && (
+            <p className="text-sm text-gray-500 mt-1">{team.name}</p>
+          )}
         </div>
       </div>
 
-      {/* Contributions List */}
-      <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white p-4 rounded border border-gray-100">
+          <p className="text-xs text-gray-500 mb-1">Contributions</p>
+          <p className="text-2xl font-semibold text-gray-900">{totalContributions}</p>
+        </div>
+        <div className="bg-white p-4 rounded border border-gray-100">
+          <p className="text-xs text-gray-500 mb-1">Total Score</p>
+          <p className="text-2xl font-semibold text-gray-900">{totalScore.toFixed(1)}</p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
         {!contributions || contributions.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No contributions yet.</p>
+          <div className="bg-white rounded border border-gray-100 p-12 text-center">
+            <p className="text-gray-500">No contributions yet</p>
           </div>
         ) : (
           contributions.map((contribution) => (
             <div
               key={contribution.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+              className="bg-white rounded border border-gray-100 p-4 hover:border-gray-300 transition"
             >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {contribution.title}
-                    </h3>
-                    <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-medium text-gray-900">{contribution.title}</h3>
+                    <span className="text-xs text-gray-500 px-2 py-0.5 bg-gray-50 rounded">
                       {contribution.contribution_type}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {new Date(contribution.created_at).toLocaleString()}
+                  <p className="text-sm text-gray-500 mb-2">
+                    {new Date(contribution.created_at).toLocaleDateString()}
                   </p>
                   {contribution.description && (
-                    <p className="text-gray-700 mt-3">{contribution.description}</p>
+                    <p className="text-sm text-gray-700 mb-2">{contribution.description}</p>
                   )}
                   {contribution.external_link && (
                     <a
                       href={contribution.external_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-sm mt-2 inline-block"
+                      className="text-sm text-gray-600 hover:text-gray-900"
                     >
-                      View external link →
+                      View link →
                     </a>
                   )}
                 </div>
-
                 <div className="text-right ml-4">
-                  <div className="text-2xl font-bold text-gray-900">
+                  <div className="text-lg font-semibold text-gray-900">
                     {contribution.reputation_score.toFixed(1)}
                   </div>
-                  <div className="text-xs text-gray-600">points</div>
+                  <div className="text-xs text-gray-500">points</div>
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center space-x-4 text-sm text-gray-600 border-t border-gray-200 pt-4">
-                <span className="flex items-center">
-                  <Check className="h-4 w-4 mr-1" />
-                  {contribution.verification_count} verifications
-                </span>
+              <div className="mt-4 pt-4 border-t border-gray-100 text-sm text-gray-500">
+                <span>{contribution.verification_count} verifications</span>
                 {contribution.flag_count > 0 && (
-                  <span className="flex items-center text-red-600">
-                    <Flag className="h-4 w-4 mr-1" />
-                    {contribution.flag_count} flags
-                  </span>
+                  <span className="ml-3 text-red-600">{contribution.flag_count} flags</span>
                 )}
               </div>
             </div>
@@ -137,4 +124,3 @@ export function MemberContributions() {
     </div>
   );
 }
-

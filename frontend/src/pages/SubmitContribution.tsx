@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { contributionApi } from '../lib/api';
 import { ContributionType } from '../types';
-import { Upload, Link as LinkIcon } from 'lucide-react';
 
 export function SubmitContribution() {
   const { teamId } = useParams<{ teamId: string }>();
@@ -51,50 +50,44 @@ export function SubmitContribution() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Submit Contribution</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Submit Contribution</h1>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-white rounded border border-gray-100 p-6 space-y-5">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
             {error}
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Title *
-          </label>
+          <label className="block text-sm text-gray-700 mb-1">Title *</label>
           <input
             type="text"
             required
             value={formData.title}
             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Brief description of your contribution"
+            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-gray-400"
+            placeholder="Brief description"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Description
-          </label>
+          <label className="block text-sm text-gray-700 mb-1">Description</label>
           <textarea
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             rows={4}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Detailed explanation of what you contributed"
+            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-gray-400"
+            placeholder="Detailed explanation"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Type *
-          </label>
+          <label className="block text-sm text-gray-700 mb-1">Type *</label>
           <select
             value={formData.contribution_type}
             onChange={(e) => setFormData({ ...formData, contribution_type: e.target.value as ContributionType })}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-gray-400"
           >
             <option value={ContributionType.GIT}>Git Commit</option>
             <option value={ContributionType.DOCUMENT}>Document</option>
@@ -106,48 +99,38 @@ export function SubmitContribution() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            External Link
-          </label>
-          <div className="mt-1 flex rounded-md shadow-sm">
-            <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500">
-              <LinkIcon className="h-4 w-4" />
-            </span>
-            <input
-              type="url"
-              value={formData.external_link}
-              onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
-              className="flex-1 block w-full px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="https://github.com/... or https://docs.google.com/..."
-            />
-          </div>
+          <label className="block text-sm text-gray-700 mb-1">External Link</label>
+          <input
+            type="url"
+            value={formData.external_link}
+            onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-gray-400"
+            placeholder="https://..."
+          />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm text-gray-700 mb-2">
             Upload File (Optional)
           </label>
-          <div className="flex items-center justify-center w-full">
-            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-              <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                <p className="text-sm text-gray-600">
-                  {file ? file.name : 'Click to upload or drag and drop'}
-                </p>
-                <p className="text-xs text-gray-500">PDF, PNG, JPG, TXT, etc.</p>
-              </div>
-              <input
-                type="file"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-              />
-            </label>
-          </div>
+          <label className="flex items-center justify-center w-full h-24 border-2 border-gray-200 border-dashed rounded cursor-pointer hover:border-gray-300">
+            <div className="text-center">
+              <p className="text-sm text-gray-600">
+                {file ? file.name : 'Click to upload or drag and drop'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">PDF, PNG, JPG, TXT, etc.</p>
+            </div>
+            <input
+              type="file"
+              className="hidden"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+            />
+          </label>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Self-Assessed Impact: {formData.self_assessed_impact}
+          <label className="block text-sm text-gray-700 mb-2">
+            Impact: {formData.self_assessed_impact}
           </label>
           <input
             type="range"
@@ -155,27 +138,26 @@ export function SubmitContribution() {
             max="5"
             value={formData.self_assessed_impact}
             onChange={(e) => setFormData({ ...formData, self_assessed_impact: Number(e.target.value) })}
-            className="mt-2 w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
           />
-          <div className="flex justify-between text-xs text-gray-600 mt-1">
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
             <span>Low</span>
-            <span>Medium</span>
             <span>High</span>
           </div>
         </div>
 
-        <div className="flex space-x-4">
+        <div className="flex gap-3 pt-2">
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 disabled:opacity-50"
           >
-            {loading ? 'Submitting...' : 'Submit Contribution'}
+            {loading ? 'Submitting...' : 'Submit'}
           </button>
           <button
             type="button"
             onClick={() => navigate(`/teams/${teamId}`)}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
           >
             Cancel
           </button>

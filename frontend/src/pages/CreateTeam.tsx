@@ -28,63 +28,53 @@ export function CreateTeam() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Create New Team</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Create Team</h1>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-white rounded border border-gray-100 p-6 space-y-5">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
             {error}
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Team Name *
-          </label>
+          <label className="block text-sm text-gray-700 mb-1">Team Name *</label>
           <input
             type="text"
             required
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            placeholder="My Awesome Team"
+            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-gray-400"
+            placeholder="My Team"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Description
-          </label>
+          <label className="block text-sm text-gray-700 mb-1">Description</label>
           <textarea
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             rows={4}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Brief description of your team or project"
+            className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:border-gray-400"
+            placeholder="Brief description"
           />
         </div>
 
-        <div className="flex space-x-4">
+        <div className="flex gap-3 pt-2">
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 disabled:opacity-50"
           >
             {loading ? 'Creating...' : 'Create Team'}
           </button>
           <button
             type="button"
             onClick={() => navigate('/dashboard')}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
           >
             Cancel
           </button>
-        </div>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
-            <strong>Note:</strong> After creating the team, you'll receive an invite code that you can share with your team members.
-          </p>
         </div>
       </form>
     </div>
